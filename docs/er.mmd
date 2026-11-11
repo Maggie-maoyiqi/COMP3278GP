@@ -1,0 +1,89 @@
+erDiagram
+    ACCOUNT ||--o{ SESSION : authenticates
+    CITY ||--o{ VENUE : contains
+    VENUE ||--o{ RUN : hosts
+    PRODUCTION ||--o{ RUN : stages
+    PRODUCTION ||--o{ CHARACTER : defines
+    RUN ||--o{ PERFORMANCE : schedules
+    RUN ||--o{ SALE_ROUND : announces
+    PERFORMANCE ||--o{ CAST : has
+    CHARACTER ||--o{ CAST : played_as
+    ACTOR ||--o{ CAST : performs
+    SALE_ROUND ||--o{ SALE_CHANNEL : offers
+    CHANNEL ||--o{ SALE_CHANNEL : distributes
+    ACCOUNT {
+        int id PK
+        text username UK
+        text password_hash
+        text salt
+        text role
+    }
+    SESSION {
+        text token PK
+        int account_id FK
+        text expires_at
+    }
+    CITY {
+        int id PK
+        text name UK
+    }
+    VENUE {
+        int id PK
+        int city_id FK
+        text name
+        text address
+    }
+    PRODUCTION {
+        int id PK
+        text title
+        text description
+        text poster_url
+    }
+    RUN {
+        int id PK
+        int production_id FK
+        int venue_id FK
+        text start_date
+        text end_date
+        text schedule_url
+        text seatmap_url
+        int published
+    }
+    PERFORMANCE {
+        int id PK
+        int run_id FK
+        text starts_at
+    }
+    CHARACTER {
+        int id PK
+        int production_id FK
+        text name
+    }
+    ACTOR {
+        int id PK
+        text name
+    }
+    CAST {
+        int id PK
+        int performance_id FK
+        int character_id FK
+        int actor_id FK
+    }
+    SALE_ROUND {
+        int id PK
+        int run_id FK
+        text opens_at
+        text kind
+        text note
+    }
+    CHANNEL {
+        int id PK
+        text name UK
+        text url
+    }
+    SALE_CHANNEL {
+        int id PK
+        int sale_round_id FK
+        int channel_id FK
+        text eligibility
+    }
