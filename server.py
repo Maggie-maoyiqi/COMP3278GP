@@ -1,5 +1,6 @@
 import os, json, sqlite3, secrets, hashlib, hmac, base64, re
 from demo_data import seed_season
+from migrations import migrate_text_fields
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
@@ -8,11 +9,10 @@ from urllib.parse import urlparse, parse_qs
 ROOT=Path(__file__).resolve().parent
 DB=Path(os.environ.get('DATABASE_PATH',str(ROOT/'data/theatre.db')))
 TABLES={
- 'cities':['name'], 'venues':['city_id','name','address'],
+ 'venues':['city','name','address'],
  'productions':['title','description','poster_url'],
  'runs':['production_id','venue_id','start_date','end_date','schedule_url','seatmap_url','published'],
- 'performances':['run_id','starts_at'], 'actors':['name'],
- 'characters':['production_id','name'], 'casts':['performance_id','character_id','actor_id'],
+ 'performances':['run_id','starts_at','cast_text'],
  'sale_rounds':['run_id','opens_at','kind','note'], 'channels':['name','url'],
  'sale_channels':['sale_round_id','channel_id','eligibility']}
 class Connection(sqlite3.Connection):
@@ -26,6 +26,7 @@ def connect():
 def password(p,s): return hashlib.pbkdf2_hmac('sha256',p.encode(),bytes.fromhex(s),200000).hex()
 def init():
  DB.parent.mkdir(parents=True,exist_ok=True)
+ migrate_text_fields(DB)
  with connect() as c:
   c.executescript((ROOT/'schema.sql').read_text())
   if not c.execute('SELECT 1 FROM accounts LIMIT 1').fetchone():
@@ -71,21 +72,20 @@ class Handler(SimpleHTTPRequestHandler):
     if path=='/api/me':return self.reply(dict(user))
     if path=='/api/logout' and method=='POST':
      c.execute('DELETE FROM sessions WHERE account_id=?',(user['id'],));return self.reply({'ok':True},cookie='session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0')
-    if path=='/api/cities' and method=='GET':return self.reply([dict(r) for r in c.execute('SELECT * FROM cities ORDER BY id')])
+    if path=='/api/cities' and method=='GET':return self.reply([dict(r) for r in c.execute('SELECT DISTINCT city AS name FROM venues ORDER BY city')])
     if path=='/api/calendar' and method=='GET':
-     month=q.get('month',['2026-06'])[0]
+     month=q.get('month',['2026-11'])[0]
      if not re.fullmatch(r'\d{4}-(0[1-9]|1[0-2])',month):raise ValueError('月份格式应为 YYYY-MM')
      cities=q.get('city',[]); args=[month]; where=''
-     if cities:where=' AND v.city_id IN ('+','.join('?' for _ in cities)+')';args+=cities
-     rows=c.execute('''SELECT s.*,p.title,p.poster_url,r.start_date,r.end_date,v.name venue,ci.name city,ci.id city_id FROM sale_rounds s JOIN runs r ON r.id=s.run_id JOIN productions p ON p.id=r.production_id JOIN venues v ON v.id=r.venue_id JOIN cities ci ON ci.id=v.city_id WHERE r.published=1 AND substr(s.opens_at,1,7)=?'''+where+' ORDER BY s.opens_at,s.id',args)
+     if cities:where=' AND v.city IN ('+','.join('?' for _ in cities)+')';args+=cities
+     rows=c.execute('''SELECT s.*,p.title,p.poster_url,r.start_date,r.end_date,v.name venue,v.city FROM sale_rounds s JOIN runs r ON r.id=s.run_id JOIN productions p ON p.id=r.production_id JOIN venues v ON v.id=r.venue_id WHERE r.published=1 AND substr(s.opens_at,1,7)=?'''+where+' ORDER BY s.opens_at,s.id',args)
      return self.reply([dict(r) for r in rows])
     if re.fullmatch(r'/api/runs/\d+',path) and method=='GET':
-     rid=int(path.split('/')[-1]); r=c.execute('''SELECT r.*,p.title,p.description,p.poster_url,v.name venue,ci.name city FROM runs r JOIN productions p ON p.id=r.production_id JOIN venues v ON v.id=r.venue_id JOIN cities ci ON ci.id=v.city_id WHERE r.id=? AND (r.published=1 OR ?='admin')''',(rid,user['role'])).fetchone()
+     rid=int(path.split('/')[-1]); r=c.execute('''SELECT r.*,p.title,p.description,p.poster_url,v.name venue,v.city FROM runs r JOIN productions p ON p.id=r.production_id JOIN venues v ON v.id=r.venue_id WHERE r.id=? AND (r.published=1 OR ?='admin')''',(rid,user['role'])).fetchone()
      if not r:return self.reply({'error':'演出不存在'},404)
      d=dict(r);d['sales']=[dict(x) for x in c.execute('SELECT * FROM sale_rounds WHERE run_id=? ORDER BY opens_at',(rid,))]
      for s in d['sales']:s['channels']=[dict(x) for x in c.execute('SELECT ch.*,sc.eligibility FROM channels ch JOIN sale_channels sc ON ch.id=sc.channel_id WHERE sc.sale_round_id=?',(s['id'],))]
      d['performances']=[dict(x) for x in c.execute('SELECT * FROM performances WHERE run_id=? ORDER BY starts_at',(rid,))]
-     for p in d['performances']:p['cast']=[dict(x) for x in c.execute('SELECT a.name actor,ch.name character FROM casts ca JOIN actors a ON a.id=ca.actor_id JOIN characters ch ON ch.id=ca.character_id WHERE ca.performance_id=?',(p['id'],))]
      return self.reply(d)
     if path.startswith('/api/admin/'):
      if user['role']!='admin':return self.reply({'error':'需要管理员权限'},403)
@@ -103,6 +103,8 @@ class Handler(SimpleHTTPRequestHandler):
      if method in ('POST','PUT'):
       b=self.body();fields=TABLES[table]
       if set(b)!=set(fields):raise ValueError('请填写所有字段，且不要添加未知字段')
+      for textkey in ('city','cast_text'):
+       if textkey in b and not isinstance(b[textkey],str):raise ValueError('城市和演员名单必须为文本')
       for key,value in b.items():
        if key.endswith('_url') and value and not (str(value).startswith('/uploads/') or re.match(r'^https?://',str(value))):raise ValueError('图片/渠道地址须为 http(s) URL 或上传路径')
        if key in ('start_date','end_date'):

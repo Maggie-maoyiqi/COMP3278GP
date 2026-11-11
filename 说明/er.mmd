@@ -1,0 +1,66 @@
+erDiagram
+    PRODUCTION ||--o{ RUN : stages
+    VENUE ||--o{ RUN : hosts
+    RUN ||--o{ PERFORMANCE : schedules
+    RUN ||--o{ SALE_ROUND : announces
+    SALE_ROUND ||--o{ SALE_CHANNEL : offers
+    CHANNEL ||--o{ SALE_CHANNEL : distributes
+    ACCOUNT ||--o{ SESSION : authenticates
+    PRODUCTION {
+        int id PK
+        text title
+        text description
+        text poster_url
+    }
+    VENUE {
+        int id PK
+        text city
+        text name
+        text address
+    }
+    RUN {
+        int id PK
+        int production_id FK
+        int venue_id FK
+        text start_date
+        text end_date
+        text schedule_url
+        text seatmap_url
+        int published
+    }
+    PERFORMANCE {
+        int id PK
+        int run_id FK
+        text starts_at
+        text cast_text
+    }
+    SALE_ROUND {
+        int id PK
+        int run_id FK
+        text opens_at
+        text kind
+        text note
+    }
+    CHANNEL {
+        int id PK
+        text name
+        text url
+    }
+    SALE_CHANNEL {
+        int id PK
+        int sale_round_id FK
+        int channel_id FK
+        text eligibility
+    }
+    ACCOUNT {
+        int id PK
+        text username
+        text password_hash
+        text salt
+        text role
+    }
+    SESSION {
+        text token PK
+        int account_id FK
+        text expires_at
+    }
