@@ -1,0 +1,84 @@
+erDiagram
+    ACCOUNT ||--o| STUDENT : owns
+    ACCOUNT ||--o{ SESSION : authenticates
+    BOOK ||--o{ BOOK_AUTHOR : has
+    AUTHOR ||--o{ BOOK_AUTHOR : writes
+    BOOK ||--o{ BOOK_COPY : has
+    LIBRARY ||--o{ BOOK_COPY : holds
+    STUDENT ||--o{ LOAN : borrows
+    BOOK_COPY ||--o{ LOAN : records
+    ACCOUNT ||--o{ LOAN : issues
+    STUDENT ||--o{ RESERVATION : places
+    BOOK ||--o{ RESERVATION : receives
+
+    ACCOUNT {
+      int id PK
+      text username UK
+      text password_hash
+      text salt
+      text role
+      int active
+    }
+    STUDENT {
+      int id PK
+      int account_id FK,UK
+      text student_no UK
+      text name
+      text email UK
+      text faculty
+      int max_loans
+    }
+    SESSION {
+      text token PK
+      int account_id FK
+      text expires_at
+    }
+    LIBRARY {
+      int id PK
+      text name UK
+      text location
+      text opening_hours
+    }
+    BOOK {
+      int id PK
+      text isbn UK
+      text title
+      int publication_year
+      text category
+    }
+    AUTHOR {
+      int id PK
+      text name UK
+    }
+    BOOK_AUTHOR {
+      int book_id PK,FK
+      int author_id PK,FK
+      int author_order
+    }
+    BOOK_COPY {
+      int id PK
+      int book_id FK
+      int library_id FK
+      text barcode UK
+      text shelf_location
+      text status
+      int reserved_for_student_id FK
+    }
+    LOAN {
+      int id PK
+      int copy_id FK
+      int student_id FK
+      text borrowed_at
+      text due_at
+      text returned_at
+      int renew_count
+      int issued_by FK
+    }
+    RESERVATION {
+      int id PK
+      int student_id FK
+      int book_id FK
+      text status
+      text queued_at
+      text fulfilled_at
+    }
