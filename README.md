@@ -6,11 +6,20 @@ The project uses only the Python 3.10+ standard library, native HTML/CSS/JavaScr
 
 ## Run locally
 
+Clone the repository and enter the project directory:
+
+```sh
+git clone <repository-url> COMP3278GP
+cd COMP3278GP
+```
+
+Start the Python backend. It also serves the static frontend files:
+
 ```sh
 python3 server.py
 ```
 
-Open [http://127.0.0.1:8765/](http://127.0.0.1:8765/) in a browser. The first run creates `data/library.db` and loads demo data.
+In a browser, open [http://127.0.0.1:8765/](http://127.0.0.1:8765/). The first run creates `data/library.db` and loads demo data.
 
 | Role | Username | Password |
 |---|---|---|
