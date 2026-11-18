@@ -68,6 +68,7 @@ def init():
         connection.execute("UPDATE students SET name='Kayan Chan' WHERE name='陈嘉欣'")
         connection.execute("UPDATE students SET name='Li Wenhao' WHERE name='李文浩'")
         ensure_identity_migration(connection)
+        ensure_demo_loan_dates(connection)
         ensure_demo_catalog(connection)
         ensure_study_room_slots(connection)
         ensure_demo_study_room_bookings(connection)
@@ -95,6 +96,19 @@ def ensure_identity_migration(connection):
     connection.execute(
         "INSERT OR IGNORE INTO admins(uid,name,email,password_hash,password_salt) VALUES(?,?,?,?,?)",
         ("A001", "Library Administrator", "librarian@connect.hku.hk", password("Librarian123!", "6c6f63616c2d61646d696e2d73616c74"), "6c6f63616c2d61646d696e2d73616c74"),
+    )
+
+
+def ensure_demo_loan_dates(connection):
+    """Keep the demo loans meaningful as the calendar moves past seed dates."""
+    now = NOW()
+    connection.execute(
+        "UPDATE loans SET borrowed_at=?, due_at=? WHERE id=1 AND returned_at IS NULL AND due_at<?",
+        ((now - timedelta(days=7)).isoformat(), (now + timedelta(days=7)).isoformat(), (now - timedelta(days=1)).isoformat()),
+    )
+    connection.execute(
+        "UPDATE loans SET borrowed_at=?, due_at=? WHERE id=2 AND returned_at IS NULL",
+        ((now - timedelta(days=30)).isoformat(), (now - timedelta(days=2)).isoformat()),
     )
 
 

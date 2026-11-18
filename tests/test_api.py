@@ -89,10 +89,14 @@ class LibraryApiTest(unittest.TestCase):
         self.assertTrue(any(item["status"] == "expired" for item in rooms["slots"]))
         tomorrow = (server.NOW().date() + server.timedelta(days=1)).isoformat()
         self.assertEqual(self.request(f"student/study-room-slots?date={tomorrow}")[1]["date"], tomorrow)
+        room_date = rooms["date"]
+        if not any(item["status"] == "available" for item in rooms["slots"]):
+            room_date = tomorrow
+            rooms = self.request(f"student/study-room-slots?date={room_date}")[1]
         slot = next(item for item in rooms["slots"] if item["status"] == "available")
         status, result = self.request(f"student/study-room-slots/{slot['id']}/reserve", "POST", {})
         self.assertEqual(status, 201)
-        current = next(item for item in self.request("student/study-room-slots")[1]["slots"] if item["id"] == slot["id"])
+        current = next(item for item in self.request(f"student/study-room-slots?date={room_date}")[1]["slots"] if item["id"] == slot["id"])
         self.assertEqual(current["status"], "booked")
         self.assertEqual(current["reserved_student_uid"], "3035000001")
         self.assertEqual(self.request(f"student/study-room-slots/{slot['id']}/reserve", "POST", {})[0], 409)
@@ -100,7 +104,11 @@ class LibraryApiTest(unittest.TestCase):
 
     def test_student_study_room_daily_limit_is_two_hours(self):
         self.login()
-        slots = [item for item in self.request("student/study-room-slots")[1]["slots"] if item["status"] == "available"][:3]
+        rooms = self.request("student/study-room-slots")[1]
+        if not any(item["status"] == "available" for item in rooms["slots"]):
+            tomorrow = (server.NOW().date() + server.timedelta(days=1)).isoformat()
+            rooms = self.request(f"student/study-room-slots?date={tomorrow}")[1]
+        slots = [item for item in rooms["slots"] if item["status"] == "available"][:3]
         self.assertEqual(self.request(f"student/study-room-slots/{slots[0]['id']}/reserve", "POST", {})[0], 201)
         self.assertEqual(self.request(f"student/study-room-slots/{slots[1]['id']}/reserve", "POST", {})[0], 201)
         self.assertEqual(self.request(f"student/study-room-slots/{slots[2]['id']}/reserve", "POST", {})[0], 409)
@@ -134,7 +142,8 @@ class LibraryApiTest(unittest.TestCase):
         )
         status, renewed = self.request("student/loans/1/renew", "POST", {})
         self.assertEqual(status, 200)
-        self.assertEqual(renewed["due_at"][:10], "2026-11-29")
+        expected_due = server.NOW() + server.timedelta(days=21)
+        self.assertEqual(renewed["due_at"][:10], expected_due.date().isoformat())
         self.assertEqual(
             self.request(f"student/reservations/{created['id']}", "DELETE")[0], 200
         )

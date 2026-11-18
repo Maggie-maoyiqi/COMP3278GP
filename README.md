@@ -29,8 +29,28 @@ In a browser, open [http://127.0.0.1:8765/](http://127.0.0.1:8765/). The first r
 Stop the server with `Ctrl+C`. If port 8765 is unavailable, use:
 
 ```sh
-PORT=8765 python3 server.py
+PORT=8766 python3 server.py
 ```
+
+## Database setup and configuration
+
+No external database server is required. On startup, the backend:
+
+1. Creates the `data/` directory and SQLite database if they do not exist.
+2. Applies `schema.sql`, including tables, foreign keys, checks, and indexes.
+3. Loads the initial records from `seed.sql` on a fresh database.
+4. Adds the demo catalogue and study-room booking records used by the interface.
+
+Optional environment variables:
+
+```sh
+DATABASE_PATH=/tmp/comp3278-library.db \
+LIBRARY_COOKIE_SECRET="replace-with-a-local-secret" \
+PORT=8766 \
+python3 server.py
+```
+
+To recreate the local demo database, stop the server, remove `data/library.db`, and start it again. The database is intentionally ignored by Git.
 
 ## Features
 
