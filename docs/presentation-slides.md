@@ -1,159 +1,184 @@
-# COMP3278 Library Portal - Presentation Slide Plan
+# COMP3278 Library Portal — copy-ready slide content
 
-This plan follows the assessment structure: submission reproducibility (30 marks) is supported by the README, while the five-minute presentation addresses functionality/design, ER design, SQL, CRUD/database video demonstration, and group participation.
+This is the text to paste into the slides. The **Screenshot to take** lines are production instructions, not slide text. The SQL below follows the current project code and schema. Keep the slide text in English; the short Chinese instructions explain what to capture. Total speaking time, including the video, is **5:00**. The video itself is **1:40**, below the two-minute limit.
 
-## Presentation constraints
+## Before making slides
 
-- Total presentation time: 5 minutes.
-- Embedded video demonstration: no more than 2 minutes.
-- Every group member speaks.
-- Keep the slide deck visual: use the ER diagram, one architecture diagram, and a small number of screenshots rather than dense paragraphs.
+1. Start the app with `cd COMP3278GP && python3 server.py`, then open `http://127.0.0.1:8765/`.
+2. Use the student demo account to capture Search, Study Room Booking, and My Bookings. Use the librarian demo account to capture Books, Circulation, and Requests. Crop the browser chrome; leave the page title and relevant data visible.
+3. For SQL slides, type the short snippets below into the PPT as editable code. Do not screenshot an entire source file. Highlight the matching UI element with a numbered callout.
+4. Capture screens before changing demo data for the video. The app's student book requests and study-room bookings are different operations.
 
-## Slide 1 - Project overview (0:00-0:25)
+## Slide 1 — Title (0:00–0:15)
 
-**Title:** COMP3278 Library Portal
+**Paste on slide**
 
-**Put on the slide:**
+> COMP3278 Library Portal
+> A database-backed library service for students and librarians
+> Group members: [replace with your names]
 
-- A web-based university library system.
-- Student portal + librarian portal.
-- SQLite relational database with a Python standard-library backend.
-- One sentence on the problem: manage bibliographic records, physical copies, loans, requests, and study-room slots in one consistent system.
+**Visual:** One clean screenshot of the student Search page, cropped to the header, category filter, and a few book cards.
 
-**Speaker notes:** Introduce the project, group members, and the two user roles. State that the presentation will show both the database design and a short working demonstration.
+**Say:** “Our portal brings book discovery, loans, book requests and study-room reservations together. The librarian view manages physical copies and circulation.”
 
-## Slide 2 - User functions and interface design (0:25-0:55)
+## Slide 2 — Functionality and interface (0:15–0:40)
 
-**Title:** What users can do
+**Paste on slide**
 
-**Put on the slide:**
+> **Student** — Search books, renew loans, request unavailable books, and reserve study rooms.
+> **Librarian** — Maintain book and copy records, check books out and in, and review requests.
+> **Design choice** — Book requests target a title; loans target one physical copy.
 
-| Student | Librarian |
-|---|---|
-| Search by title, author, ISBN, category | Manage books and physical copies |
-| View loans and renew eligible loans | Check books out and process returns |
-| Join/cancel book request queues | View students, loans, overdue items, and queues |
-| Reserve 08:00-22:00 study-room slots | Switch to student demo view for testing |
+**Screenshot to take:** 左右并排放两张：学生 Search 页的 category 下拉框与书卡；管理员 Circulation 页的 checkout/return 区域。不要放登录页。
 
-Add two small screenshots: catalogue search and study-room booking matrix.
+**Say:** “Students and librarians have separate screens and permissions. The catalogue record and a physical copy are separate because one title may have several borrowable copies.”
 
-**Speaker notes:** Explain that the sidebar separates My Loans, Study Room Booking, My Bookings, and My Requests. Only available room slots can be booked; the UI asks for confirmation and the server enforces the daily limit of two hours.
+## Slide 3 — ER diagram and keys (0:40–1:20)
 
-## Slide 3 - System architecture and security boundary (0:55-1:20)
+**Paste on slide**
 
-**Title:** Application architecture
+> **BOOK** (`book_id` PK, `isbn` UNIQUE) → **BOOK_COPY** (`book_id` FK): one title, many copies.
+> **BOOK** ↔ **AUTHOR** through **BOOK_AUTHOR**: many-to-many.
+> **LOAN** references a student and a physical copy; **RESERVATION** references a student and a book.
+> **STUDY_ROOM_SLOTS** uses `(room_no, slot_start)` as a unique room-and-hour key.
 
-**Put on the slide:**
+**Screenshot to take:** 截取项目 `docs/er.svg` 中 BOOK、BOOK_COPY、AUTHOR、LOAN、RESERVATION 的关系并放左侧；右侧用简洁文本框补充 Study Room Slots。注意：提供的设计文档画了 STUDY_ROOM → ROOM_SLOT → BOOKING 三张表，但当前实现是单张 `study_room_slots` 表，展示时必须如实说明，别把三张表当成已实现。
 
-```text
-Browser (HTML/CSS/JS)
-        |
-        | JSON HTTP API + HttpOnly signed cookie
-        v
-Python standard-library HTTP server
-        |
-        | role checks, transactions, validation
-        v
-SQLite database
-  schema.sql + seed.sql + demo migrations
+**Say:** “The internal book ID is stable, while ISBN is a unique business identifier. Copy status belongs to each physical copy. Room and hour are unique together, which prevents duplicate slot rows.”
+
+## Slide 4 — Key SQL ①: catalogue search (1:20–1:50)
+
+**Paste on slide**
+
+> **Search books by category and availability**
+
+```sql
+SELECT b.book_id, b.title, b.category,
+       COUNT(DISTINCT bc.id) AS total_copies,
+       COUNT(DISTINCT CASE WHEN bc.status = 'available'
+                           THEN bc.id END) AS available_copies
+FROM books b
+LEFT JOIN book_copies bc ON bc.book_id = b.book_id
+WHERE b.category = ?
+GROUP BY b.book_id
+HAVING available_copies > 0;
 ```
 
-- Student and librarian routes are checked server-side.
-- Passwords are stored as salted PBKDF2-HMAC hashes.
-- SQLite foreign keys, CHECK constraints, unique indexes, and write transactions protect consistency.
+**Comment boxes to paste beside code**
 
-**Speaker notes:** Emphasize that the browser is not trusted for permissions or booking limits; the backend repeats all important checks.
+> ① `b.category = ?` applies the selected category.
+> ② `COUNT(DISTINCT bc.id)` counts physical copies without duplicates.
+> ③ `HAVING` keeps only books with an available copy.
 
-## Slide 4 - ER diagram and normalization (1:20-2:00)
+**Screenshot to take:** 学生 Search 页面选择一个分类，并勾选 “Available only”，截图要同时显示筛选控件与结果书卡。建议选 Computer Science；截图前确认书卡 category 与选择一致。
 
-**Title:** ER design: bibliographic records versus physical copies
+**Say:** “The same page combines category filtering with copy availability. We group by the book ID so the result is one row per title.”
 
-**Put on the slide:** Use the ER diagram from `docs/er.mmd` or `docs/er.svg`.
+## Slide 5 — Key SQL ②: study-room booking (1:50–2:25)
 
-Highlight these relationships:
+**Paste on slide**
 
-- `BOOK 1:N BOOK_COPY`: one edition can have many physical copies.
-- `BOOK M:N AUTHOR`: normalized through `BOOK_AUTHOR`.
-- `STUDENT 1:N LOAN`: loan history belongs to a student and a physical copy.
-- `BOOK 1:N RESERVATION`: requests form a queue for a bibliographic record.
-- `STUDY_ROOM 1:N ROOM_SLOT`: each room has hourly slots; a slot can be booked at most once.
-
-**Speaker notes:** Explain that `books.book_id` is the primary key and `isbn` is a unique business identifier. A loan points to `book_copies`, while a request points to `books`; this prevents duplicated title and copy data and supports multiple copies of one edition.
-
-## Slide 5 - Important integrity constraints (2:00-2:25)
-
-**Title:** Database rules that protect correctness
-
-**Put on the slide:**
-
-- `UNIQUE(isbn)` and `UNIQUE(barcode)` prevent duplicate identifiers.
-- Partial unique index: one active loan per physical copy.
-- Partial unique index: one open request per student and book.
-- Study-room slot unique key: one room and hour has one row.
-- `status` checks prevent invalid book-copy and room-slot states.
-- Foreign keys prevent orphan copies, loans, requests, and bookings.
-
-**Speaker notes:** Connect each rule to a user-visible behavior: no double checkout, no duplicate request, and no double booking.
-
-## Slide 6 - Key SQL transaction: librarian checkout (2:25-2:55)
-
-**Title:** A transaction is more than one SQL statement
-
-**Put on the slide:** Show a shortened, commented SQL sequence:
+> **Reserve an available room-hour, at most two per student per day**
 
 ```sql
 BEGIN IMMEDIATE;
--- Lock the write transaction.
-SELECT * FROM book_copies WHERE barcode = ?;
--- Check the student's active-loan count.
-SELECT COUNT(*) FROM loans
-WHERE student_id = ? AND returned_at IS NULL;
--- Insert the loan and update the physical copy together.
-INSERT INTO loans(copy_id, student_id, borrowed_at, due_at, issued_by)
-VALUES (?, ?, ?, ?, ?);
-UPDATE book_copies SET status = 'borrowed' WHERE id = ?;
+SELECT id, status, slot_start
+FROM study_room_slots
+WHERE id = ?;
+SELECT COUNT(*) FROM study_room_slots
+WHERE reserved_student_uid = ?
+  AND status = 'booked'
+  AND substr(slot_start, 1, 10) = ?;
+UPDATE study_room_slots
+SET status = 'booked', reserved_student_uid = ?
+WHERE id = ? AND status = 'available';
 COMMIT;
 ```
 
-**Speaker notes:** Explain that `BEGIN IMMEDIATE` prevents two librarians from passing the same availability check simultaneously. The transaction either records both changes or none.
+**Comment boxes to paste beside code**
 
-## Slide 7 - Two-minute video demonstration (2:55-4:45)
+> ① The server accepts only a future slot for today or tomorrow, between 08:00 and 22:00.
+> ② The daily count must be below two before the update.
+> ③ `BEGIN IMMEDIATE` and the status condition guard against double booking.
 
-**Title:** Live workflow: student to librarian
+**Screenshot to take:** 学生 Study Room Booking 页，截日期切换、时间列、八个房间及红/绿/灰状态；可以再加小图截绿色格子点击后的 “Confirm booking” 弹窗。尽量用浏览器缩放使 08:00–22:00 全列可见。
 
-**Video storyboard (maximum 110 seconds):**
+**Say:** “A green cell is only a candidate. The confirmation dialog precedes the server transaction, which checks time, availability and the daily limit.”
 
-1. **0:00-0:15** - Student signs in and searches by category; show the filtered result count.
-2. **0:15-0:35** - Open Study Room Booking; switch Today/Tomorrow; point out expired, booked, and available cells.
-3. **0:35-0:55** - Click an available slot; show the confirmation dialog; confirm booking; show My Bookings.
-4. **0:55-1:15** - Open My Loans; show an active loan and a renewal action.
-5. **1:15-1:35** - Sign out from My Account and sign in as librarian.
-6. **1:35-1:50** - Show dashboard, book/copy records, and circulation checkout/return.
-7. **1:50-2:00** - Show the request queue and explain automatic ready-state allocation after return.
+## Slide 6 — Key SQL ③: checkout and queue allocation (2:25–2:55)
 
-**Speaker notes:** Keep the video focused on CRUD and database operations required by the rubric. Use prepared demo data so no typing or waiting is needed.
+**Paste on slide**
 
-## Slide 8 - Reproducibility and conclusion (4:45-5:00)
+> **Checkout updates the loan and its physical copy together**
 
-**Title:** Reproducible submission
+```sql
+BEGIN IMMEDIATE;
+SELECT * FROM book_copies WHERE barcode = ?;
+SELECT COUNT(*) FROM loans
+WHERE student_id = ? AND returned_at IS NULL;
+INSERT INTO loans(copy_id, student_id, borrowed_at, due_at, issued_by)
+VALUES (?, ?, ?, ?, ?);
+UPDATE book_copies
+SET status = 'borrowed', reserved_for_student_id = NULL
+WHERE id = ?;
+COMMIT;
+```
 
-**Put on the slide:**
+**Comment boxes to paste beside code**
 
-- Clone `COMP3278GP`, `cd COMP3278GP`, run `python3 server.py`.
-- The backend serves the frontend at `http://127.0.0.1:8765/`.
-- Startup creates SQLite data, applies `schema.sql`, and loads `seed.sql` plus demo records.
-- Verification: `python3 -m unittest discover -s tests -v`.
-- Final takeaway: normalized data model + transaction-safe operations + two role-specific workflows.
+> ① The barcode identifies one physical copy.
+> ② The server checks copy status, student limit and request queue before inserting.
+> ③ Returning a copy can automatically mark it reserved for the first waiting student.
 
-**Speaker notes:** Close by reminding the audience that the README contains installation, database setup, configuration, demo accounts, and verification commands. Thank the audience and invite questions.
+**Screenshot to take:** 管理员 Circulation 的借出表单和 active loans 表，突出 student number、barcode、状态；若能截图归还后的 Requests 页面，可在右下角加一张小图表现 waiting → ready。
 
-## Suggested speaker allocation
+**Say:** “The transaction changes both the loan record and copy status. On return, the queue is checked automatically; final checkout still happens at the circulation desk.”
 
-| Member | Slides | Focus |
-|---|---|---|
-| Member 1 | 1-2 | Problem, users, and interface |
-| Member 2 | 3-4 | Architecture and ER diagram |
-| Member 3 | 5-6 | Constraints and SQL transactions |
-| Member 4 | 7-8 | Video demonstration, reproducibility, conclusion |
+## Slide 7 — CRUD and database operations video (2:55–4:35)
 
-Adjust the allocation to the actual group size, but ensure every member has a speaking segment.
+**Paste on slide**
+
+> **Video demo: data changes across the student and librarian views**
+> Create → Read → Update → Delete, with the resulting database state visible in the UI.
+
+**Record this exact sequence (1:40 maximum):**
+
+1. **0:00–0:15 — Read:** Student searches a category and opens a book’s copy details.
+2. **0:15–0:35 — Create:** Book a green study-room cell and confirm; show it turn red and appear in My Bookings.
+3. **0:35–0:50 — Update:** Renew an eligible loan in My Loans; show the due date change. If no eligible loan remains, demonstrate a librarian edit to a book record instead.
+4. **0:50–1:05 — Delete:** Cancel the created study-room booking through the API only if your UI has no cancel button; preferably use librarian Books/Copies Delete in the UI for an unreferenced test record. Do not claim an on-screen cancel action if it is absent.
+5. **1:05–1:30 — Librarian:** Sign in as librarian; add a book or copy, edit it, then check a copy out or return one. Show status changes in Circulation.
+6. **1:30–1:40 — Database evidence:** Show the refreshed Books/Copies/Requests list reflecting the previous action.
+
+**Screenshot to take:** 此页放视频封面图，用管理员 Books/Copies 表格截图，并覆盖一个播放按钮。视频本身请录屏嵌入 PPT；不要用静态图冒充视频。录屏前准备好 student number、barcode 和可删除的测试记录，避免现场输入耗时。
+
+**Say:** “The video shows the CRUD operations and how each action changes the database-backed interface.”
+
+## Slide 8 — Reproducibility and close (4:35–5:00)
+
+**Paste on slide**
+
+> **Run and verify**
+>
+> `git clone …/COMP3278GP.git` → `cd COMP3278GP` → `python3 server.py`
+> Open `http://127.0.0.1:8765/`
+> SQLite is initialized on first launch with `schema.sql`, `seed.sql`, and demo records.
+> `python3 -m unittest discover -s tests -v`
+>
+> **Takeaway:** A normalized library database with role-specific workflows and transaction-safe updates.
+
+**Screenshot to take:** README 的 Run locally 和 Database setup and configuration 两段，裁掉无关文字；或用简洁终端截图显示启动命令和 server URL。
+
+**Say:** “The README provides every setup step, demo accounts and database configuration. The tests use temporary databases, so the demo database is preserved.”
+
+## Timing and group participation
+
+| Section | Duration |
+|---|---:|
+| Slides 1–3: introduction, functions, ER | 1:20 |
+| Slides 4–6: key SQL with matching function screenshots | 1:35 |
+| Slide 7: CRUD video | 1:40 |
+| Slide 8: reproducibility and closing | 0:25 |
+| **Total** | **5:00** |
+
+Assign at least one spoken segment to every actual group member. The speaker can narrate the video, but make the handoff before and after the video explicit.
